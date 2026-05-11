@@ -259,7 +259,7 @@ class KMeans:
         # NEcessary line, this way we can avoid a division by 0
         self.FISHER = between / within if within > 1e-10 else np.inf
 
-    def find_bestK(self, max_K):
+def find_bestK(self, max_K):
         """
         Sets the best K by analysing results up to 'max_K' clusters.
         Supports three fitting heuristics: 'WCD', 'ICD', 'FISHER'.
@@ -268,6 +268,29 @@ class KMeans:
         fitting = self.options['fitting'].upper()
 
         last_metric = None
+
+        #We are gonna use the elbow method: computes WCD for all K values and finds the point of maximum curvature
+        # using the second finite difference of the WCD curve. The elbow is where the rate of
+        # decrease shifts most sharply, detected as argmax of delta^2(WCD).
+        # we extracted the information from: https://www.geeksforgeeks.org/elbow-method-for-optimal-value-of-k-in-kmeans/
+        if fitting == 'ELBOW':
+            wcds = []
+            for K in range(2, max_K + 1):
+                self.K = K
+                self.fit()
+                self.withinClassDistance()
+                wcds.append(self.WCD)
+
+            if len(wcds) < 3:
+                self.K = max_K
+                return
+
+            # second finite difference: measures curvature at each interior point
+            second_diff = [wcds[i - 1] - 2 * wcds[i] + wcds[i + 1] for i in range(1, len(wcds) - 1)]
+            best_idx = int(np.argmax(second_diff))
+            self.K = best_idx + 3  #necesarry because K starts at 2, second_diff starts at index 1
+            self.fit()
+            return
 
         for K in range(2, max_K + 1):
             self.K = K
