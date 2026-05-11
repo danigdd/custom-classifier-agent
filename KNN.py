@@ -17,39 +17,86 @@ class KNN:
 
     def _init_train(self, train_data):
         """
-        initializes the train data
-        :param train_data: PxMxNx3 matrix corresponding to P color images
-        :return: assigns the train set to the matrix self.train_data shaped as PxD (P points in a D dimensional space)
+        initializes the train data. Supports feature modes via options['feature_mode']:
+            'pixels'   : raw flattened RGB pixels (default, original behaviour)
+            'reduced'  : image downsampled to a smaller resolution before flattening
+            'stats'    : per-channel mean, std, min and max
         """
-        #######################################################
-        ##  YOU MUST REMOVE THE REST OF THE CODE OF THIS FUNCTION
-        ##  AND CHANGE FOR YOUR OWN CODE
-        #######################################################
         train_data = np.array(train_data, dtype=float)
-        n_images = train_data.shape[0]
-        self.train_data = train_data.reshape(n_images, 4800)
+        self.original_shape = train_data.shape[1:3]  #(m, n)
+        self.train_data = self._extract_features(train_data)
+
+    def _extract_features(self, data):
+        """
+        extracts features from a set of images according to options['feature_mode'].
+        Arguments:
+            data (np.ndarray): shape (p, m, n, 3)
+        Returns:
+            np.ndarray: shape (p, d) where D depends on the chosen mode
+        """
+
+        mode = self.options.get('feature_mode', 'pixels')
+        n = data.shape[0]
+
+        if mode == 'pixels':
+            #the oririginal behaviour we had: flatten all RGB pixels
+            return data.reshape(n, -1)
+
+        elif mode == 'reduced':
+            #we downsample each image to a smaller resolution
+            scale = self.options.get('reduction_scale', 0.5)
+            M, N = data.shape[1], data.shape[2]
+            new_M = max(1, int(M * scale))
+            new_N = max(1, int(N * scale))
+
+            #simple block-average downsampling (this way no external libraries are needed)
+            step_M = max(1, M // new_M)
+            step_N = max(1, N // new_N)
+            reduced = data[:, ::step_M, ::step_N, :]
+            return reduced.reshape(n, -1)
+
+        elif mode == 'stats':
+            #4 statistics x 3 channels = 12 features per image
+            features = np.zeros((n, 12))
+            for c in range(3):
+                channel = data[:, :, :, c].reshape(n, -1)
+                features[:, c * 4 + 0] = channel.mean(axis=1)
+                features[:, c * 4 + 1] = channel.std(axis=1)
+                features[:, c * 4 + 2] = channel.min(axis=1)
+                features[:, c * 4 + 3] = channel.max(axis=1)
+            return features
+
+        else:
+            raise ValueError(
+                f"feature_mode '{mode}' not recognised. Use 'pixels', 'reduced' or 'stats'."
+            )
 
     def get_k_neighbours(self, test_data, k):
         """
-        given a test_data matrix calculates de k nearest neighbours at each point (row) of test_data on self.neighbors
-        :param test_data: array that has to be shaped to a NxD matrix (N points in a D dimensional space)
-        :param k: the number of neighbors to look at
-        :return: the matrix self.neighbors is created (NxK)
-                 the ij-th entry is the j-th nearest train point to the i-th test point
+        calculates the k nearest neighbours for each point in test_data.
+        Supports distance metrics via options['distance']:
+            'euclidean' : L2 distance (default)
+            'manhattan' : L1 distance (upgrade)
+            'cosine'    : cosine dissimilarity (upgrade)
         """
-        #######################################################
-        ##  YOU MUST REMOVE THE REST OF THE CODE OF THIS FUNCTION
-        ##  AND CHANGE FOR YOUR OWN CODE
-        #######################################################
         test_data = np.array(test_data, dtype=float)
-        n_images = test_data.shape[0]
-        test_data = test_data.reshape(n_images, 4800)
+        test_feats = self._extract_features(test_data)
 
-        distances = cdist(test_data, self.train_data, "euclidean")
+        metric = self.options.get('distance', 'euclidean')
+
+        if metric == 'euclidean':
+            distances = cdist(test_feats, self.train_data, 'euclidean')
+        elif metric == 'manhattan':
+            distances = cdist(test_feats, self.train_data, 'cityblock')
+        elif metric == 'cosine':
+            distances = cdist(test_feats, self.train_data, 'cosine')
+        else:
+            raise ValueError(
+                f"Distance '{metric}' not recognised. Use 'euclidean', 'manhattan' or 'cosine'."
+            )
 
         sorted_idxs = np.argsort(distances, axis=1)
-        knn = sorted_idxs[:, :k]
-        self.neighbors = self.labels[knn]
+        self.neighbors = self.labels[sorted_idxs[:, :k]]
 
     def get_class(self):
         """
@@ -91,3 +138,14 @@ class KNN:
 
         self.get_k_neighbours(test_data, k)
         return self.get_class()
+
+
+"""
+EXAMPLE OF USE
+
+knn = KNN(train_data, labels)
+knn.options = {'feature_mode': 'reduced', 'reduction_scale': 0.5, 'distance': 'manhattan'}
+knn.predict(test_data, k=5)
+
+
+"""
