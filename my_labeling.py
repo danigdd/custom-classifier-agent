@@ -1,8 +1,9 @@
 __authors__ = ["1748951", "1755033", "1703660"]
 __group__ = "11"
 
+from quant_analysis import kmeans_statistics
 from utils_data import *
-from Kmeans import KMeans, get_colors
+from Kmeans import KMeanOptions, KMeans, get_colors
 from KNN import *
 import numpy as np
 
@@ -29,9 +30,14 @@ if __name__ == "__main__":
     train_imgs_gray = np.mean(train_imgs, axis=3).astype(float)
     test_imgs_gray = np.mean(test_imgs, axis=3).astype(float)
 
-    knn = KNN(train_imgs_gray, train_class_labels)
-    knn.get_k_neighbours(test_imgs_gray, k=5)
-    predicted_shape_labels = knn.get_class()
+    # knn = KNN(train_imgs_gray, train_class_labels)
+    # knn.get_k_neighbours(test_imgs_gray, k=5)
+    # predicted_shape_labels = knn.get_class()
+
+    kmeans_options = KMeanOptions(tolerance=0.001, max_iter=1000, verbose=False)
+    for idx, image in enumerate(cropped_images):
+        kmeans = KMeans(image, K=1, options=kmeans_options)
+        stats = kmeans_statistics(kmeans, 10)
 
     # You can start coding your functions here
 
@@ -112,13 +118,13 @@ def Retrieval_by_shape(llista_imatges, etiquetes, query, neighbours=None, k=5):
     return resultat
 
 
-# Passem les imatges en gris pel init del KNN. Si les passesim a color cada imatge ocuparia 60x80x3=14400 pixels en comptes de 60x80=4800
+    # Passem les imatges en gris pel init del KNN. Si les passesim a color cada imatge ocuparia 60x80x3=14400 pixels en comptes de 60x80=4800
 
-peces_trobades = Retrieval_by_shape(
-    test_imgs, predicted_shape_labels, "Shirts", neighbours=knn.neighbors, k=5
-)
+    peces_trobades = Retrieval_by_shape(
+        test_imgs, predicted_shape_labels, "Shirts", neighbours=knn.neighbors, k=5
+    )
 
-# FUNCIÓ 3:
+    # FUNCIÓ 3:
 
 
 def Retrieval_combined(

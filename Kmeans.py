@@ -201,6 +201,7 @@ class KMeans:
         #######################################################
         pixel_centroids = self.centroids[self.labels]
         self.WCD = np.sum((self.X - pixel_centroids) ** 2) / self.X.shape[0]
+        return self.WCD
 
     def interClassDistance(self):
         """
