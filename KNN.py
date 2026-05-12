@@ -1,14 +1,22 @@
-__authors__ = ['1748951', '1755033', '1703660']
-__group__ = '11'
+__authors__ = ["1748951", "1755033", "1703660"]
+__group__ = "11"
 
 import numpy as np
-import math
-import operator
+from typing import Optional
+from dataclasses import dataclass
 from scipy.spatial.distance import cdist
 
 
+@dataclass
+class KNNOptions:
+    feature_mode: str = "pixels"
+    reduction_scale: float = 0.5  # Scale for 'reduced' feature mode
+    distance: str = "euclidean"
+
+
 class KNN:
-    def __init__(self, train_data, labels):
+    def __init__(self, train_data, labels, options: Optional[KNNOptions] = None):
+        self.options = options or KNNOptions()
         self._init_train(train_data)
         self.labels = np.array(labels)
         #############################################################
@@ -23,7 +31,7 @@ class KNN:
             'stats'    : per-channel mean, std, min and max
         """
         train_data = np.array(train_data, dtype=float)
-        self.original_shape = train_data.shape[1:3]  #(m, n)
+        self.original_shape = train_data.shape[1:3]  # (m, n)
         self.train_data = self._extract_features(train_data)
 
     def _extract_features(self, data):
@@ -33,30 +41,32 @@ class KNN:
             data (np.ndarray): shape (p, m, n, 3)
         Returns:
             np.ndarray: shape (p, d) where D depends on the chosen mode
+        Raises:
+            ValueError if no valid 'feature_mode' is set in options
         """
 
-        mode = self.options.get('feature_mode', 'pixels')
+        mode = self.options.feature_mode
         n = data.shape[0]
 
-        if mode == 'pixels':
-            #the oririginal behaviour we had: flatten all RGB pixels
+        if mode == "pixels":
+            # the oririginal behaviour we had: flatten all RGB pixels
             return data.reshape(n, -1)
 
-        elif mode == 'reduced':
-            #we downsample each image to a smaller resolution
-            scale = self.options.get('reduction_scale', 0.5)
+        elif mode == "reduced":
+            # we downsample each image to a smaller resolution
+            scale = self.options.reduction_scale
             M, N = data.shape[1], data.shape[2]
             new_M = max(1, int(M * scale))
             new_N = max(1, int(N * scale))
 
-            #simple block-average downsampling (this way no external libraries are needed)
+            # simple block-average downsampling (this way no external libraries are needed)
             step_M = max(1, M // new_M)
             step_N = max(1, N // new_N)
             reduced = data[:, ::step_M, ::step_N, :]
             return reduced.reshape(n, -1)
 
-        elif mode == 'stats':
-            #4 statistics x 3 channels = 12 features per image
+        elif mode == "stats":
+            # 4 statistics x 3 channels = 12 features per image
             features = np.zeros((n, 12))
             for c in range(3):
                 channel = data[:, :, :, c].reshape(n, -1)
@@ -82,14 +92,14 @@ class KNN:
         test_data = np.array(test_data, dtype=float)
         test_feats = self._extract_features(test_data)
 
-        metric = self.options.get('distance', 'euclidean')
+        metric = self.options.distance
 
-        if metric == 'euclidean':
-            distances = cdist(test_feats, self.train_data, 'euclidean')
-        elif metric == 'manhattan':
-            distances = cdist(test_feats, self.train_data, 'cityblock')
-        elif metric == 'cosine':
-            distances = cdist(test_feats, self.train_data, 'cosine')
+        if metric == "euclidean":
+            distances = cdist(test_feats, self.train_data, "euclidean")
+        elif metric == "manhattan":
+            distances = cdist(test_feats, self.train_data, "cityblock")
+        elif metric == "cosine":
+            distances = cdist(test_feats, self.train_data, "cosine")
         else:
             raise ValueError(
                 f"Distance '{metric}' not recognised. Use 'euclidean', 'manhattan' or 'cosine'."
@@ -114,7 +124,7 @@ class KNN:
             row_list = list(row)
             best_val = None
             max_votes = -1
-            
+
             already_counted = []
             for label in row_list:
                 if label not in already_counted:
@@ -123,7 +133,7 @@ class KNN:
                         max_votes = votes
                         best_val = label
                     already_counted.append(label)
-            
+
             predictions.append(best_val)
 
         return np.array(predictions)
@@ -146,6 +156,5 @@ EXAMPLE OF USE
 knn = KNN(train_data, labels)
 knn.options = {'feature_mode': 'reduced', 'reduction_scale': 0.5, 'distance': 'manhattan'}
 knn.predict(test_data, k=5)
-
 
 """

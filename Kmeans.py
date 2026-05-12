@@ -1,24 +1,43 @@
-__authors__ = ['1748951', '1755033', '1703660']
-__group__ = '11'
+__authors__ = ["1748951", "1755033", "1703660"]
+__group__ = "11"
 
-from typing import Tuple
+from dataclasses import dataclass
+import sys
+from typing import Optional
 import numpy as np
 import utils
 
 
-class KMeans:
+@dataclass
+class KMeanOptions:
+    km_init: str = "first"
+    verbose: bool = False
+    tolerance: float = 0.0
+    max_iter: int = sys.maxsize  # Big number aka no max iters
+    fitting: str = "WCD"
+    best_k_tolerance: float = 0.2
 
-    def __init__(self, X, K=1, options=None):
+    def __post_init__(self):
+        if not (0 < self.best_k_tolerance <= 1):
+            raise ValueError(
+                f"best_k_tolerance must be between 0 and 1 (got {self.best_k_tolerance})"
+            )
+
+
+class KMeans:
+    def __init__(
+        self, X: np.ndarray, K: int = 1, options: Optional[KMeanOptions] = None
+    ):
         """
-         Constructor of KMeans class
-             Args:
-                 K (int): Number of cluster
-                 options (dict): dictionary with options
-            """
+        Constructor of KMeans class
+            Args:
+                K (int): Number of cluster
+                options (dict): dictionary with options
+        """
         self.num_iter = 0
-        self.K = K
+        self.K: int = K
         self._init_X(X)
-        self._init_options(options)  # DICT options
+        self.options: KMeanOptions = options or KMeanOptions()
 
     #############################################################
     ##  THIS FUNCTION CAN BE MODIFIED FROM THIS POINT, if needed
@@ -26,10 +45,10 @@ class KMeans:
 
     def _init_X(self, X: np.ndarray | list):
         """Initialization of all pixels, sets X as an array of data in vector form (PxD)
-            Args:
-                X (list or np.array): list(matrix) of all pixel values
-                    if matrix has more than 2 dimensions, the dimensionality of the sample space is the length of
-                    the last dimension
+        Args:
+            X (list or np.array): list(matrix) of all pixel values
+                if matrix has more than 2 dimensions, the dimensionality of the sample space is the length of
+                the last dimension
         """
         #######################################################
         ##  YOU MUST REMOVE THE REST OF THE CODE OF THIS FUNCTION
@@ -43,36 +62,6 @@ class KMeans:
             X = X.reshape(F * C, triplet)
 
         self.X = X
-
-    def _init_options(self, options=None):
-        """
-        Initialization of options in case some fields are left undefined
-        Args:
-            options (dict): dictionary with options
-        """
-        if options is None:
-            options = {}
-        if 'km_init' not in options:
-            options['km_init'] = 'first'
-        if 'verbose' not in options:
-            options['verbose'] = False
-        if 'tolerance' not in options:
-            options['tolerance'] = 0
-        if 'max_iter' not in options:
-            options['max_iter'] = np.inf
-        if 'fitting' not in options:
-            options['fitting'] = 'WCD'  # within class distance.
-        if 'best_k_tolerance' not in options:
-            options['best_k_tolerance'] = 0.2
-
-        # If your methods need any other parameter you can add it to the options dictionary
-        if not (0 < options['best_k_tolerance'] <= 1):
-            raise ValueError("best_k_tolerance must be between 0 and 1")
-        self.options = options
-
-        #############################################################
-        ##  THIS FUNCTION CAN BE MODIFIED FROM THIS POINT, if needed
-        #############################################################
 
     def _first_centroids(self) -> np.ndarray:
         """
@@ -105,17 +94,15 @@ class KMeans:
                 break
         return np.array(centroids, np.float64)
 
-
     def _custom_centroids(self) -> np.ndarray:
-        #minims i maxims de cada dimensio (D,)
+        # minims i maxims de cada dimensio (D,)
         min_vals = self.X.min(axis=0)
         max_vals = self.X.max(axis=0)
 
-        #k punts equispaiats entre 0 i 1
-        t = np.linspace(0, 1, self.K)   #[0, 1/(K-1), 2/(K-1), ..., 1]
+        # k punts equispaiats entre 0 i 1
+        t = np.linspace(0, 1, self.K)  # [0, 1/(K-1), 2/(K-1), ..., 1]
 
-        #recorrem diagonal
-        centroids = min_vals + t[:, None] * (max_vals - min_vals)  #(K, D)
+        centroids = min_vals + t[:, None] * (max_vals - min_vals)  # (K, D)
 
         return np.array(centroids, dtype=np.float64)
 
@@ -128,17 +115,18 @@ class KMeans:
         ##  YOU MUST REMOVE THE REST OF THE CODE OF THIS FUNCTION
         ##  AND CHANGE FOR YOUR OWN CODE
         #######################################################
-        if self.options['km_init'].lower() == 'first':
-            self.centroids = self._first_centroids()
-        elif self.options['km_init'].lower() == 'random':
-            self.centroids = self._random_centroids()
-        elif self.options['km_init'].lower() == 'custom':
-            self.centroids = self._custom_centroids()
-        else:
-            raise ValueError(f"Initilization option '{self.options['km_init']}' invalid")
+        init_method = self.options.km_init
+        match init_method.lower():
+            case "first":
+                self.centroids = self._first_centroids()
+            case "random":
+                self.centroids = self._random_centroids()
+            case "custom":
+                self.centroids = self._custom_centroids()
+            case _:
+                raise ValueError(f"Initilization option '{init_method}' invalid")
 
         self.old_centroids = np.zeros_like(self.centroids)
-
 
     def get_labels(self):
         """
@@ -179,11 +167,11 @@ class KMeans:
         ##  YOU MUST REMOVE THE REST OF THE CODE OF THIS FUNCTION
         ##  AND CHANGE FOR YOUR OWN CODE
         #######################################################
-        if self.num_iter >= self.options['max_iter']:
+        if self.num_iter >= self.options.max_iter:
             return True
 
         diff = np.abs(self.centroids - self.old_centroids)
-        return np.all(diff <= self.options['tolerance'])
+        return np.all(diff <= self.options.tolerance)
 
     def fit(self):
         """
@@ -204,7 +192,7 @@ class KMeans:
 
     def withinClassDistance(self):
         """
-         returns the within class distance of the current clustering
+        returns the within class distance of the current clustering
         """
 
         #######################################################
@@ -233,7 +221,6 @@ class KMeans:
 
         self.ICD = total / count
 
-
     def fisherCoefficient(self):
         """
         Returns Fisher's criterion: the ratio of between-class scatter to within-class scatter.
@@ -241,39 +228,39 @@ class KMeans:
         """
         global_mean = np.mean(self.X, axis=0)
 
-        #between-class scatter: weighted sum of squared distances from each centroid to global mean
+        # between-class scatter: weighted sum of squared distances from each centroid to global mean
         between = 0.0
         for i in range(self.K):
             n_i = np.sum(self.labels == i)
             diff = self.centroids[i] - global_mean
             between += n_i * np.dot(diff, diff)
 
-        #within-class scatter: sum of squared distances from each point to its centroid
+        # within-class scatter: sum of squared distances from each point to its centroid
         within = 0.0
         for i in range(self.K):
             points = self.X[self.labels == i]
             if points.shape[0] > 0:
                 diffs = points - self.centroids[i]
-                within += np.sum(diffs ** 2)
+                within += np.sum(diffs**2)
 
         # NEcessary line, this way we can avoid a division by 0
         self.FISHER = between / within if within > 1e-10 else np.inf
 
-def find_bestK(self, max_K):
+    def find_bestK(self, max_K):
         """
         Sets the best K by analysing results up to 'max_K' clusters.
         Supports three fitting heuristics: 'WCD', 'ICD', 'FISHER'.
         """
-        tolerance = self.options['best_k_tolerance']
-        fitting = self.options['fitting'].upper()
+        tolerance = self.options.best_k_tolerance
+        fitting = self.options.fitting.upper()
 
         last_metric = None
 
-        #We are gonna use the elbow method: computes WCD for all K values and finds the point of maximum curvature
+        # We are gonna use the elbow method: computes WCD for all K values and finds the point of maximum curvature
         # using the second finite difference of the WCD curve. The elbow is where the rate of
         # decrease shifts most sharply, detected as argmax of delta^2(WCD).
         # we extracted the information from: https://www.geeksforgeeks.org/elbow-method-for-optimal-value-of-k-in-kmeans/
-        if fitting == 'ELBOW':
+        if fitting == "ELBOW":
             wcds = []
             for K in range(2, max_K + 1):
                 self.K = K
@@ -286,9 +273,13 @@ def find_bestK(self, max_K):
                 return
 
             # second finite difference: measures curvature at each interior point
-            second_diff = [wcds[i - 1] - 2 * wcds[i] + wcds[i + 1] for i in range(1, len(wcds) - 1)]
+            second_diff = [
+                wcds[i - 1] - 2 * wcds[i] + wcds[i + 1] for i in range(1, len(wcds) - 1)
+            ]
             best_idx = int(np.argmax(second_diff))
-            self.K = best_idx + 3  #necesarry because K starts at 2, second_diff starts at index 1
+            self.K = (
+                best_idx + 3
+            )  # necesarry because K starts at 2, second_diff starts at index 1
             self.fit()
             return
 
@@ -296,7 +287,7 @@ def find_bestK(self, max_K):
             self.K = K
             self.fit()
 
-            if fitting == 'WCD':
+            if fitting == "WCD":
                 self.withinClassDistance()
                 metric = self.WCD
                 # if WCD decreases then we stop when relative improvement drops below tolerance
@@ -305,7 +296,7 @@ def find_bestK(self, max_K):
                         self.K = K - 1
                         return
 
-            elif fitting == 'ICD':
+            elif fitting == "ICD":
                 self.interClassDistance()
                 metric = self.ICD
                 # On the other hand, if ICD increases then we stop when relative gain drops below tolerance
@@ -314,7 +305,7 @@ def find_bestK(self, max_K):
                         self.K = K - 1
                         return
 
-            elif fitting == 'FISHER':
+            elif fitting == "FISHER":
                 self.fisherCoefficient()
                 metric = self.FISHER
                 # Finally, if Fisher increases we stop when relative gain drops below tolerance
@@ -323,11 +314,13 @@ def find_bestK(self, max_K):
                         self.K = K - 1
                         return
             else:
-                raise ValueError(f"Fitting option '{fitting}' not recognised. Use 'WCD', 'ICD' or 'FISHER'.")
+                raise ValueError(
+                    f"Fitting option '{fitting}' not recognised. Use 'WCD', 'ICD' or 'FISHER'."
+                )
 
             last_metric = metric
 
-        #we keep max_K if there is not an early stop
+        # we keep max_K if there is not an early stop
 
 
 def distance(X: np.ndarray, C: np.ndarray) -> np.ndarray:
@@ -345,7 +338,7 @@ def distance(X: np.ndarray, C: np.ndarray) -> np.ndarray:
         En un principi, el programa trigava molt a calcular la millor k i fer els fits.
 
         En revisar el codi i l'execució del programa, no es va trigar a veure que la major part
-        del temps d'execució s'emprava en calcular les distàncies euclidianes. 
+        del temps d'execució s'emprava en calcular les distàncies euclidianes.
 
         L'implementació original era aquesta:
 
@@ -381,7 +374,8 @@ def distance(X: np.ndarray, C: np.ndarray) -> np.ndarray:
     #########################################################
 
     diff = X[:, None, :] - C[None, :, :]
-    return np.sqrt(np.sum(diff ** 2, axis=-1))
+    return np.sqrt(np.sum(diff**2, axis=-1))
+
 
 def get_colors(centroids: np.ndarray):
     """
