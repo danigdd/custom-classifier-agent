@@ -1,7 +1,7 @@
 __authors__ = ["1748951", "1755033", "1703660"]
 __group__ = "11"
 
-from quant_analysis import kmeans_statistics
+from quant_analysis import kmeans_stats, get_shape_accuracy, get_color_accuracy
 from utils_data import *
 from Kmeans import KMeanOptions, KMeans, get_colors
 from KNN import *
@@ -30,16 +30,25 @@ if __name__ == "__main__":
     train_imgs_gray = np.mean(train_imgs, axis=3).astype(float)
     test_imgs_gray = np.mean(test_imgs, axis=3).astype(float)
 
-    # knn = KNN(train_imgs_gray, train_class_labels)
-    # knn.get_k_neighbours(test_imgs_gray, k=5)
-    # predicted_shape_labels = knn.get_class()
-
-    kmeans_options = KMeanOptions(tolerance=0.001, max_iter=1000, verbose=False)
-    for idx, image in enumerate(cropped_images):
-        kmeans = KMeans(image, K=1, options=kmeans_options)
-        stats = kmeans_statistics(kmeans, 10)
-
     # You can start coding your functions here
+    # kmeans_stats(train_imgs, 8)
+
+    # knn = KNN(train_imgs_gray, train_class_labels)
+    # predicted_shapes = knn.predict(test_imgs_gray, k=5)
+    # get_shape_accuracy(predicted_shapes, test_class_labels)
+
+    predicted_colors = []
+    for img in cropped_images:
+        pixels = img.reshape(-1, 3).astype(float)
+        kmeans_options = KMeanOptions(km_init="random", tolerance=0.001, fitting="ELBOW")
+        km = KMeans(pixels, K=1, options=kmeans_options)
+        km.find_bestK(5)
+        km.fit()
+        predicted_colors.append(list(set(get_colors(km.centroids))))
+    # Notese que en usar las cropped, la accuract subio de un 32 a un 59!
+    get_color_accuracy(predicted_colors, color_labels)
+
+    exit()
 
 ## FUNCIONS D'ANÀLISI QUALITATIU
 
